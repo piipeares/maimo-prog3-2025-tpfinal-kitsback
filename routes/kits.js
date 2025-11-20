@@ -31,6 +31,7 @@ router.post("/", async (req, res) => {
   try {
     const {
       teamId,
+      teamName,
       season,
       type,
       supplier,
@@ -43,6 +44,7 @@ router.post("/", async (req, res) => {
 
     const kit = new Kit({
       teamId: teamId || null,
+      teamName: teamName || "",
       season,
       type,
       supplier,
