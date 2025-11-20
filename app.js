@@ -4,24 +4,22 @@ import cors from "cors";
 import indexRoutes from "./routes/index.js";
 import productsRoutes from "./routes/products.js";
 import kitsRoutes from "./routes/kits.js";
+import teamsRoutes from "./routes/teams.js";
 import categoriesRoutes from "./routes/categories.js";
 import ordersRoutes from "./routes/orders.js";
+import commentsRoutes from "./routes/comments.js";
+import { connectDb } from "./db.js";
 
-/* Clear the console  */
 console.log("\x1Bc");
 
 const app = express();
 
-// DB Connection
-import { connectDb } from "./db.js";
 connectDb();
 
-/* Settings */
 app.set("port", process.env.PORT || 4000);
 
-/* Middlewares */
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.json({ limit: "50mb" }));
 
 app.use(
   cors({
@@ -37,17 +35,16 @@ app.use(
   })
 );
 
-/* Routes */
 app.use("/", indexRoutes);
 app.use("/products", productsRoutes);
 app.use("/categories", categoriesRoutes);
 app.use("/orders", ordersRoutes);
 app.use("/kits", kitsRoutes);
+app.use("/teams", teamsRoutes);
+app.use("/comments", commentsRoutes);
 
-/* Error handler  */
-// catch 404 and forward to error handler
 app.use(function (req, res, next) {
-  next(createError(404));
+  res.status(404).send({ message: "Not Found" });
 });
 
 app.use(function (err, req, res, next) {
@@ -55,7 +52,6 @@ app.use(function (err, req, res, next) {
   res.send({ message: err.message || "error" });
 });
 
-/* Starting server */
 app.listen(app.get("port"), () => {
   console.log(`Server on port ${app.get("port")}`);
 });
