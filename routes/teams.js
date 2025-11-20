@@ -17,59 +17,56 @@ router.get("/fix-data", async (req, res) => {
       if (seenNames[normalizedName]) {
         await Team.findByIdAndDelete(team._id);
         deletedCount++;
-        log.push(`Eliminado duplicado: ${team.name}`);
+        log.push(`Eliminado general: ${team.name}`);
       } else {
         seenNames[normalizedName] = true;
+      }
+    }
+
+    const nacionals = await Team.find({ 
+      name: { $regex: "Nacional", $options: "i" } 
+    });
+
+    const montevideoTeams = nacionals.filter(t => t.name.toLowerCase().includes("montevideo"));
+
+    if (montevideoTeams.length > 1) {
+      for (let i = 1; i < montevideoTeams.length; i++) {
+        await Team.findByIdAndDelete(montevideoTeams[i]._id);
+        deletedCount++;
+        log.push(`Eliminado duplicado específico: ${montevideoTeams[i].name}`);
         
-        if (normalizedName.includes("nacional") && !team.logo) {
-             team.logo = "/nacional.jpg";
-             await team.save();
+        await Kit.updateMany(
+          { teamId: montevideoTeams[i]._id },
+          { $set: { teamId: montevideoTeams[0]._id } }
+        );
+      }
+    }
+
+    const requiredTeams = [
+        { name: "Argentina", logo: "/argentina.jpg", type: "national", country: "Argentina" },
+        { name: "Real Madrid", logo: "/realmadrid.jpg", type: "club", country: "España" }
+    ];
+
+    for (const reqTeam of requiredTeams) {
+        const exists = await Team.findOne({ name: { $regex: new RegExp(`^${reqTeam.name}$`, "i") } });
+        if (!exists) {
+            await Team.create(reqTeam);
+            log.push(`Creado faltante: ${reqTeam.name}`);
+        } else if (!exists.logo) {
+            exists.logo = reqTeam.logo;
+            await exists.save();
         }
-      }
-    }
-
-    let realMadridStatus = "Ya existía";
-    const realMadrid = await Team.findOne({ name: "Real Madrid" });
-    
-    if (!realMadrid) {
-      await Team.create({ 
-        name: "Real Madrid", 
-        country: "España", 
-        type: "club", 
-        logo: "/realmadrid.jpg" 
-      });
-      realMadridStatus = "Creado exitosamente";
-    } else {
-      if (!realMadrid.logo) {
-        realMadrid.logo = "/realmadrid.jpg";
-        await realMadrid.save();
-        realMadridStatus = "Actualizado con logo";
-      }
-    }
-
-    let argentinaStatus = "Ya existía";
-    const argentina = await Team.findOne({ name: "Argentina" });
-    if (!argentina) {
-        await Team.create({ 
-            name: "Argentina", 
-            country: "Argentina", 
-            type: "national", 
-            logo: "/argentina.jpg" 
-        });
-        argentinaStatus = "Creado exitosamente";
     }
 
     res.json({ 
-      resultado: "Base de datos optimizada",
-      duplicados_eliminados: deletedCount,
-      real_madrid: realMadridStatus,
-      argentina: argentinaStatus,
-      detalle_borrados: log
+      resultado: "Base de datos reparada",
+      eliminados: deletedCount,
+      detalle: log
     });
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error crítico en reparación" });
+    res.status(500).json({ error: "Error en la reparación" });
   }
 });
 
@@ -99,44 +96,16 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.get("/seed-from-kits", async (req, res) => {
-    try {
-      const kits = await Kit.find();
-      for (const kit of kits) {
-        if (!kit.teamName) continue;
-        const exists = await Team.exists({ name: { $regex: new RegExp(`^${kit.teamName}$`, "i") } });
-        if (!exists) {
-          await Team.create({ name: kit.teamName, country: "Colección", type: "club", logo: "" });
-        }
-      }
-      res.json({ message: "Seed completado" });
-    } catch(e) { res.json({error: e.message}) }
-});
+router.get("/seed-from-kits", async (req, res) => { res.json({message: "Use /fix-data"}); });
+router.get("/update-logos", async (req, res) => { res.json({message: "Use /fix-data"}); });
 
-router.get("/update-logos", async (req, res) => {
-    try {
-        const mappings = [
-          { key: "boca", file: "/boca.jpg" },
-          { key: "lorenzo", file: "/sanlorenzo.jpg" },
-          { key: "racing", file: "/racing.jpg" },
-          { key: "inter", file: "/inter.jpg" },
-          { key: "francia", file: "/francia.jpg" },
-          { key: "france", file: "/francia.jpg" },
-          { key: "japon", file: "/japon.jpg" },
-          { key: "japón", file: "/japon.jpg" },
-          { key: "city", file: "/mancity.jpg" },
-          { key: "venezia", file: "/venecia.jpg" },
-          { key: "nacional", file: "/nacional.jpg" },
-          { key: "nigeria", file: "/nigeria.jpg" },
-          { key: "argentina", file: "/argentina.jpg" },
-          { key: "madrid", file: "/realmadrid.jpg" },
-          { key: "real", file: "/realmadrid.jpg" }
-        ];
-        for (const map of mappings) {
-          await Team.updateMany({ name: { $regex: map.key, $options: "i" } }, { $set: { logo: map.file } });
-        }
-        res.json({ message: "Logos actualizados" });
-    } catch(e) { res.json({error: e.message}) }
+router.post("/", async (req, res) => {
+  try {
+    const team = await Team.create(req.body);
+    res.status(201).json({ data: team });
+  } catch (err) {
+    res.status(400).json({ error: "Error al crear equipo" });
+  }
 });
 
 export default router;
